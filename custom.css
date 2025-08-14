@@ -1,0 +1,46 @@
+.alert{
+    font-size: 50px;
+}
+.clock .date  {
+    font-size: 50px;
+}
+.clock .time{
+    font-size: 100px
+
+}
+
+.calendar .time {
+    font-size: 30px;
+}
+.calendar .title {
+    font-size: 30px;
+}
+.calendar .symbol {
+    font-size: 30px;
+}
+/* .MMM-FitnessDashboard {
+    font-size: 50px;
+} */
+
+.region.top_center .MMM-FitnessDashboard {
+    transform: translateX(100px) !important;
+}
+.newfeed {
+    font-size: 40px;
+}
+.compliments{
+    font-size: 30px;
+}
+
+body {
+  background-color: rgb(0, 0, 0);
+}
+
+.weather .current .temperature {
+  font-size: 80px !important;
+  color: #fff !important;
+}
+.forecast .day {
+  color: #99ccff !important;
+  font-size: 18px !important;
+}
