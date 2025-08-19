@@ -1,0 +1,59 @@
+.fitness-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px;
+}
+
+.fitness-card {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid;
+    border-radius: 15px;
+    padding: 20px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease-in-out;
+}
+
+.fitness-card:hover {
+    transform: scale(1.05);
+}
+
+.fitness-icon {
+    font-size: 40px;
+    margin-bottom: 5px;
+}
+
+.fitness-icon.pulse {
+    animation: pulseAnim 1s infinite;
+}
+
+@keyframes pulseAnim {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+.fitness-label {
+    font-size: 25px;
+    opacity: 0.8;
+}
+
+.fitness-value {
+    font-size: 25px;
+    font-weight: bold;
+}
+
+.fitness-progress {
+    height: 6px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+
+.fitness-bar {
+    height: 100%;
+    transition: width 0.5s ease;
+}

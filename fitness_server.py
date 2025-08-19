@@ -24,8 +24,8 @@ if __name__ == "__main__":
 
     # Giả lập dữ liệu (thay bằng code AI + cảm biến của bạn)
     while True:
-        stats["pushups"] += 1
-        stats["pullups"] += 2
-        stats["heart_rate"] = 70 + (stats["pushups"] % 20)  # random tăng nhẹ
-        stats["breath_rate"] = 16 + (stats["pullups"] % 5)  # random tăng nhẹ
+        # stats["pushups"] += 1
+        # stats["pullups"] += 2
+        # stats["heart_rate"] = 70 + (stats["pushups"] % 20)  # random tăng nhẹ
+        # stats["breath_rate"] = 16 + (stats["pullups"] % 5)  # random tăng nhẹ
         time.sleep(5)

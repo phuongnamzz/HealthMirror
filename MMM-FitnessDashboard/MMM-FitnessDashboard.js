@@ -12,14 +12,19 @@ Module.register("MMM-FitnessDashboard", {
 
     start() {
         this.updateTimer = setInterval(() => {
-            // Giả lập dữ liệu, sau này sẽ lấy từ sensor thực
-            this.config.stats.pullups += Math.floor(Math.random() * 2);
-            this.config.stats.pushups += Math.floor(Math.random() * 3);
-            this.config.stats.squats += Math.floor(Math.random() * 2);
-            this.config.stats.heartRate = 70 + Math.floor(Math.random() * 20);
-            this.config.stats.breathRate = 12 + Math.floor(Math.random() * 6);
-            this.updateDom();
-        }, this.config.updateInterval);
+        fetch('http://localhost:5000/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                // Cập nhật dữ liệu từ API
+                this.config.stats.pullups = data.pullups;
+                this.config.stats.pushups = data.pushups;
+                this.config.stats.squats = data.squats;
+                this.config.stats.heartRate = data.heartRate;
+                this.config.starts.breathRate = data.breathRate;
+                this.updateDom();
+            })
+            .catch(error => console.error('Lỗi khi lấy dữ liệu:', error));
+    }, this.config.updateInterval);
     },
 
     getStyles() {
