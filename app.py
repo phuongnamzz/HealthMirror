@@ -38,6 +38,8 @@ sensor_data = {
     'breathRate': 0
 }
 
+BOTTOM_CAMERA = '/dev/video2'
+TOP_CAMERA = '/dev/video0'
 
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
@@ -46,24 +48,39 @@ def calculate_angle(a, b, c):
     return 360 - angle if angle > 180.0 else angle
 
 def squat_counter():
-    cap = cv2.VideoCapture('/home/system/github/HealthMirror/squat_4times.mp4')
+    cap = cv2.VideoCapture(BOTTOM_CAMERA, cv2.CAP_V4L2)
+
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
     if not cap.isOpened():
         print("Camera not accessible")
         return
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
 
     counter, stage = 0, None
     with mp_pose.Pose(model_complexity=1,
                       smooth_landmarks=True,
                       min_detection_confidence=0.7,
                       min_tracking_confidence=0.7) as pose:
-                      
+        start_time = time.time()
+        frames = 0              
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
             image_rgb  = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            frames += 1 
+
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= 1.0:
+                fps = frames / elapsed_time
+                print(f"Current FPS: {fps:.2f}")
+                start_time = time.time()
+                frames = 0
+
             results = pose.process(image_rgb)
             h, w = frame.shape[:2]
 
@@ -87,6 +104,7 @@ def squat_counter():
                 angle_l = calculate_angle(hip_l, knee_l, ankle_l)
 
                 angle_avg = (angle_r + angle_l) / 2
+                print(f"Right Knee Angle: {angle_r:.2f}, Left Knee Angle: {angle_l:.2f}, Average: {angle_avg:.2f}")
                 if angle_avg > 160:
                     stage = "up"
                 if angle_avg < 90 and stage == "up":
