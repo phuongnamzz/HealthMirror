@@ -38,18 +38,18 @@ sensor_data = {
     'breathRate': 0
 }
 
-BOTTOM_CAMERA = '/dev/video2'
+# BOTTOM_CAMERA = '/dev/video2'
 TOP_CAMERA = '/dev/video0'
-
+BOTTOM_CAMERA = '/dev/video2'
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
     angle = np.abs(radians * 180.0/np.pi)
     return 360 - angle if angle > 180.0 else angle
 
-def squat_counter():
-    cap = cv2.VideoCapture(BOTTOM_CAMERA, cv2.CAP_V4L2)
-
+def exercise_counter():
+    cap = cv2.VideoCapture(BOTTOM_CAMERA)
+    # cap = cv2.VideoCapture(BOTTOM_CAMERA, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
@@ -59,21 +59,22 @@ def squat_counter():
         print("Camera not accessible")
         return
 
-    counter, stage = 0, None
+    squat_count, squat_stage = 0, None
+    pushup_count, pushup_stage = 0, None
+
     with mp_pose.Pose(model_complexity=1,
                       smooth_landmarks=True,
                       min_detection_confidence=0.7,
                       min_tracking_confidence=0.7) as pose:
         start_time = time.time()
-        frames = 0              
+        frames = 0
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
-            image_rgb  = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            frames += 1 
-
+            frames += 1
             elapsed_time = time.time() - start_time
             if elapsed_time >= 1.0:
                 fps = frames / elapsed_time
@@ -82,18 +83,17 @@ def squat_counter():
                 frames = 0
 
             results = pose.process(image_rgb)
-            h, w = frame.shape[:2]
-
             if results.pose_landmarks:
-
                 lms = results.pose_landmarks.landmark
+
+                # --- Squat detection ---
                 hip_r = [lms[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
                          lms[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
                 knee_r = [lms[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
                           lms[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
                 ankle_r = [lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
                            lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
-                angle_r = calculate_angle(hip_r, knee_r, ankle_r) 
+                angle_r = calculate_angle(hip_r, knee_r, ankle_r)
 
                 hip_l = [lms[mp_pose.PoseLandmark.LEFT_HIP.value].x,
                          lms[mp_pose.PoseLandmark.LEFT_HIP.value].y]
@@ -104,21 +104,51 @@ def squat_counter():
                 angle_l = calculate_angle(hip_l, knee_l, ankle_l)
 
                 angle_avg = (angle_r + angle_l) / 2
-                print(f"Right Knee Angle: {angle_r:.2f}, Left Knee Angle: {angle_l:.2f}, Average: {angle_avg:.2f}")
                 if angle_avg > 160:
-                    stage = "up"
-                if angle_avg < 90 and stage == "up":
-                    stage = "down"
-                    counter += 1
-                    print(f"Squat Count: {counter}")
+                    squat_stage = "up"
+                if angle_avg < 90 and squat_stage == "up":
+                    squat_stage = "down"
+                    squat_count += 1
+                    print(f"Squat Count: {squat_count}")
                     with data_lock:
-                        sensor_data['squats'] = counter
+                        sensor_data['squats'] = squat_count
+
+                # --- Push-up detection ---
+                shoulder_r = [lms[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                              lms[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+                elbow_r = [lms[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
+                           lms[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y]
+                wrist_r = [lms[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
+                           lms[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
+                angle_r_arm = calculate_angle(shoulder_r, elbow_r, wrist_r)
+
+                shoulder_l = [lms[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                              lms[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                elbow_l = [lms[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
+                           lms[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+                wrist_l = [lms[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                           lms[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+                angle_l_arm = calculate_angle(shoulder_l, elbow_l, wrist_l)
+
+                arm_avg = (angle_r_arm + angle_l_arm) / 2
+                if arm_avg > 160:
+                    pushup_stage = "up"
+                if arm_avg < 90 and pushup_stage == "up":
+                    pushup_stage = "down"
+                    pushup_count += 1
+                    print(f"Push-up Count: {pushup_count}")
+                    with data_lock:
+                        sensor_data['pushups'] = pushup_count
+
                 mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
                                           mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
-                                          mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2)) 
-            # cv2.imshow('Squat Counter', frame)    
+                                          mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
+
+            # cv2.imshow("Exercise Counter", frame)
+
     cap.release()
     cv2.destroyAllWindows()
+
 
 
 data_lock = threading.Lock()
@@ -213,6 +243,7 @@ def serial_reader():
         while True:
             if ser.in_waiting > 0:
                 data = ser.readline()
+                print(f"data : {data}")
                 data_str = data.decode('utf-8').strip()
                 if data_str:
                     process_data(data_str)
@@ -228,7 +259,7 @@ if __name__ == '__main__':
     serial_thread = threading.Thread(target=serial_reader, daemon=True)
     serial_thread.start()
     
-    squat_thread = threading.Thread(target=squat_counter, daemon=True)
+    squat_thread = threading.Thread(target=exercise_counter, daemon=True)
     squat_thread.start()
 
     button.when_pressed = toggle_screen
