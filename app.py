@@ -47,9 +47,26 @@ def calculate_angle(a, b, c):
     angle = np.abs(radians * 180.0/np.pi)
     return 360 - angle if angle > 180.0 else angle
 
-def exercise_counter():
+def classify_pose(lms):
+    hip_y = (lms[mp_pose.PoseLandmark.LEFT_HIP.value].y +
+             lms[mp_pose.PoseLandmark.RIGHT_HIP.value].y) / 2
+    shoulder_y = (lms[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y +
+                  lms[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y) / 2
+    ankle_y = (lms[mp_pose.PoseLandmark.LEFT_ANKLE.value].y +
+               lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y) / 2
+    
+
+    if hip_y > shoulder_y + 0.1 and ankle_y > hip_y + 0.2:
+        return "squat"
+    
+    elif abs(shoulder_y - hip_y) < 0.15:
+        return "push-up"
+    else:
+        return "unknown"
+
+
+def exercise_counter(debug=False):
     cap = cv2.VideoCapture(BOTTOM_CAMERA)
-    # cap = cv2.VideoCapture(BOTTOM_CAMERA, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
@@ -62,10 +79,12 @@ def exercise_counter():
     squat_count, squat_stage = 0, None
     pushup_count, pushup_stage = 0, None
 
-    with mp_pose.Pose(model_complexity=1,
-                      smooth_landmarks=True,
-                      min_detection_confidence=0.7,
-                      min_tracking_confidence=0.7) as pose:
+    with mp_pose.Pose(
+        model_complexity=1,
+        smooth_landmarks=True,
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.7
+    ) as pose:
         start_time = time.time()
         frames = 0
         while True:
@@ -86,68 +105,66 @@ def exercise_counter():
             if results.pose_landmarks:
                 lms = results.pose_landmarks.landmark
 
-                # --- Squat detection ---
-                hip_r = [lms[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
-                         lms[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
-                knee_r = [lms[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
-                          lms[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
-                ankle_r = [lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
-                           lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
-                angle_r = calculate_angle(hip_r, knee_r, ankle_r)
+                pose_type = classify_pose(lms)
 
-                hip_l = [lms[mp_pose.PoseLandmark.LEFT_HIP.value].x,
-                         lms[mp_pose.PoseLandmark.LEFT_HIP.value].y]
-                knee_l = [lms[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
-                          lms[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
-                ankle_l = [lms[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
-                           lms[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
-                angle_l = calculate_angle(hip_l, knee_l, ankle_l)
+                if pose_type == "squat":
+                    hip_r = [lms[mp_pose.PoseLandmark.RIGHT_HIP.value].x, lms[mp_pose.PoseLandmark.RIGHT_HIP.value].y]  
+                    knee_r = [lms[mp_pose.PoseLandmark.RIGHT_KNEE.value].x, lms[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
+                    ankle_r = [lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x, lms[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
+                    angle_r = calculate_angle(hip_r, knee_r, ankle_r)
 
-                angle_avg = (angle_r + angle_l) / 2
-                if angle_avg > 160:
-                    squat_stage = "up"
-                if angle_avg < 90 and squat_stage == "up":
-                    squat_stage = "down"
-                    squat_count += 1
-                    print(f"Squat Count: {squat_count}")
+                    hip_l = [lms[mp_pose.PoseLandmark.LEFT_HIP.value].x, lms[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+                    knee_l = [lms[mp_pose.PoseLandmark.LEFT_KNEE.value].x, lms[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
+                    ankle_l = [lms[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, lms[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+                    angle_l = calculate_angle(hip_l, knee_l, ankle_l)
+
+                    angle_avg = (angle_r + angle_l) / 2
+                    # print(f'angle {angle_avg}')
+                    if angle_avg > 160:
+                        squat_stage = "up"
+                    if angle_avg < 110 and squat_stage == "up":
+                        squat_stage = "down"
+                        squat_count += 1
+                        print(f"Squat Count: {squat_count}")
                     with data_lock:
                         sensor_data['squats'] = squat_count
 
                 # --- Push-up detection ---
-                shoulder_r = [lms[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
-                              lms[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
-                elbow_r = [lms[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
-                           lms[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y]
-                wrist_r = [lms[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
-                           lms[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
-                angle_r_arm = calculate_angle(shoulder_r, elbow_r, wrist_r)
+                elif pose_type == "push-up":
+                    nose_y = lms[mp_pose.PoseLandmark.NOSE.value].y
+                    shoulder_y = (lms[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y +
+                            lms[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y) / 2
+                    hip_y = (lms[mp_pose.PoseLandmark.LEFT_HIP.value].y +
+                        lms[mp_pose.PoseLandmark.RIGHT_HIP.value].y) / 2
+                    
 
-                shoulder_l = [lms[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                              lms[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
-                elbow_l = [lms[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
-                           lms[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
-                wrist_l = [lms[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                           lms[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
-                angle_l_arm = calculate_angle(shoulder_l, elbow_l, wrist_l)
-
-                arm_avg = (angle_r_arm + angle_l_arm) / 2
-                if arm_avg > 160:
-                    pushup_stage = "up"
-                if arm_avg < 90 and pushup_stage == "up":
-                    pushup_stage = "down"
-                    pushup_count += 1
+                    head_to_hip = nose_y - hip_y
+                    if head_to_hip < -0.05:
+                        pushup_stage = "up"
+                    elif head_to_hip > 0.05 and pushup_stage == "up":
+                        pushup_stage = "down"
+                        pushup_count += 1
                     print(f"Push-up Count: {pushup_count}")
                     with data_lock:
                         sensor_data['pushups'] = pushup_count
 
-                mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                          mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
-                                          mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2))
+                # Draw only if debug mode
+                if debug:
+                    mp_drawing.draw_landmarks(
+                        frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                        mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2),
+                        mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2)
+                    )
 
-            # cv2.imshow("Exercise Counter", frame)
+            if debug:
+                cv2.imshow("Exercise Counter", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
 
     cap.release()
     cv2.destroyAllWindows()
+
+
 
 
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Exercise Counter App
+After=network.target
+
+[Service]
+ExecStart=/home/system/project_env/bin/python /home/system/Github/HealthMirror/app.py
+WorkingDirectory=/home/system/Github/HealthMirror
+StandardOutput=journal
+StandardError=journal
+Restart=always
+RestartSec=5
+User=system
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
